@@ -8,16 +8,6 @@ from tqdm import tqdm
 
 
 def save_sparse_matrices(matrix_list, base_filename='sparse_matrix'):
-    """
-    将一个包含稀疏矩阵的列表保存为多个npz文件。
-
-    参数:
-    - matrix_list: list of csr_matrix, 需要保存的稀疏矩阵列表
-    - base_filename: str, 用于生成保存文件名的基本名称（不包括扩展名）
-
-    返回:
-    - None
-    """
     sparse_matrices = [sp.csr_matrix(arr) for arr in matrix_list]
     for idx, sparse_matrix in enumerate(sparse_matrices):
         filename = f'csr/{dataset}/{base_filename}_{idx + 1}.npz'
@@ -26,16 +16,6 @@ def save_sparse_matrices(matrix_list, base_filename='sparse_matrix'):
 
 
 def load_sparse_matrices(count, base_filename='sparse_matrix'):
-    """
-    从磁盘加载保存的稀疏矩阵。
-
-    参数:
-    - count: int, 需要加载的稀疏矩阵数量
-    - base_filename: str, 用于生成加载文件名的基本名称（不包括扩展名）
-
-    返回:
-    - loaded_sparse_matrices: list of csr_matrix, 加载的稀疏矩阵列表
-    """
     loaded_sparse_matrices = []
     for idx in range(count):
         filename = f'{base_filename}_{idx + 1}.npz'
@@ -45,7 +25,7 @@ def load_sparse_matrices(count, base_filename='sparse_matrix'):
     return loaded_sparse_matrices
 
 
-# 不同行为之间的评分不同
+
 def inter_dataset(behs, data_directory, num_users, num_items, beh_rat):
     # Step 1: Initialize a DOK sparse matrix
     user_item_matrix = sp.dok_matrix((num_users, num_items), dtype=np.float32)
@@ -62,7 +42,7 @@ def inter_dataset(behs, data_directory, num_users, num_items, beh_rat):
                     user_item_matrix[user_id, item_id] += beh_rat[i]
     return user_item_matrix
 
-# 每个行为根据不同的共同交互次数评分
+
 def intra_dataset(behs, data_directory, num_users, num_items, sim_user_mat):
     # Initialize the user-item interaction matrix
     user_item_intra_matrix_list = []
@@ -87,12 +67,10 @@ def intra_dataset(behs, data_directory, num_users, num_items, sim_user_mat):
                 common_intereact = np.logical_and(user_item_inter, sim_inter)
                 user_item_inter +=  common_intereact
             user_item_matrix[user_id] = user_item_inter
-        print("ok")# 记录结束时间
+        print("ok")
         end_time = time.time()
 
-        # 计算并打印运行时间
         elapsed_time = end_time - start_time
-        print(f"运行时间: {elapsed_time:.2f} 秒")
         sparse_user_item_matrix = sp.csr_matrix(user_item_matrix)
         user_item_intra_matrix_list.append(sparse_user_item_matrix)
 
@@ -122,55 +100,48 @@ def combine(user_item_inter_matrix, user_item_intra_matrix_list, output_pre, alp
 
 def normalize(sparse_matrix, beh_rat):
     for i in range(sparse_matrix.shape[0]):
-        # 获取第 i 行的非零元素的起始和结束索引
         row_start = sparse_matrix.indptr[i]
         row_end = sparse_matrix.indptr[i+1]
         
-        # 如果该行没有非零元素，跳过
         if row_start == row_end:
             continue
         
-        # 获取该行的非零元素的值
         row_data = sparse_matrix.data[row_start:row_end]
         
-        # 计算最小值和最大值
         row_min = row_data.min()
         row_max = row_data.max()
 
-        # 避免除以0的情况
         if row_max != row_min:
-            # 执行归一化到1-6的范围
             sparse_matrix.data[row_start:row_end] = 1 + (row_data - row_min) * (sum(beh_rat)-1 / (row_max - row_min))
         else:
-            # 如果最大值等于最小值，归一化结果全为6
             sparse_matrix.data[row_start:row_end] = sum(beh_rat)
 
     return sparse_matrix
 
 
 def denoise_low_weight_elements(sparse_matrix, percentage):
-    # 获取非零元素的总数
+    
     sparse_matrix_copy = sparse_matrix.copy()
     
-    # 获取非零元素的总数
+    
     num_nonzero = sparse_matrix_copy.nnz
     
-    # 计算需要去噪的元素数量（20%的非零元素）
+
     num_denoise = int(num_nonzero * percentage)
     
-    # 获取非零元素及其对应的索引
+
     data = sparse_matrix_copy.data
     
-    # 按权重从小到大排序，获取排序后的索引
+
     sorted_indices = np.argsort(data)
     
-    # 选择较小权重的前 num_denoise 个元素的索引
+
     selected_indices = sorted_indices[:num_denoise]
     
-    # 将选中的元素值设为0
+
     sparse_matrix_copy.data[selected_indices] = 0.0
     
-    # 去除值为0的元素并返回稀疏矩阵
+
     sparse_matrix_copy.eliminate_zeros()
 
     return sparse_matrix_copy
