@@ -198,7 +198,7 @@ class RecLoss(nn.Module):
 
 
 def preprocess_sim(config):
-    # 读取相似的用户与物品
+    
     user = sp.load_npz(f"Sim/{config['dataset']}_user_matrix.npz")
     user_indices = torch.tensor(user.toarray()).bool()
 
@@ -318,7 +318,7 @@ def set_seed(seed):
 
 if __name__ == '__main__':
     torch.autograd.set_detect_anomaly(True)
-    torch.cuda.set_device(1)
+    torch.cuda.set_device(0)
     os.environ["GIT_PYTHON_REFRESH"] = "quiet"
     os.environ['CUDA_LAUNCH_BLOCKING'] = '1'
 
@@ -332,7 +332,7 @@ if __name__ == '__main__':
     config['behs'] = data_generator.behs
     config['dataset'] = data_generator.dataset_name
 
-    config['trn_mat'] = data_generator.trnMats[-1]  # 目标行为交互矩阵
+    config['trn_mat'] = data_generator.trnMats[-1]  
     
     data_info = [
                 "wid : %s" % (args.wid),
@@ -343,12 +343,7 @@ if __name__ == '__main__':
     print(data_info)
 
 
-    """
-    *********************************************************
-    Generate the Laplacian matrix, where each entry defines the decay factor (e.g., p_ui) between two connected nodes.
-    """
-    # 每个行为的预处理后的邻接矩阵
-    # D^-0.5 * A * D^-0.5
+    
     pre_adj_list, pre_adj_aug = data_generator.get_adj_mat()
     config['pre_adjs'] = pre_adj_list
     config['pre_aug'] = pre_adj_aug
@@ -363,10 +358,7 @@ if __name__ == '__main__':
     max_item_list = []
     beh_label_list = []
 
-    # 给用户的交互进行统一化
-    # 将用户的交互个数填充为固定值，掩码为n_item
-    # 共有7977个item，编号为0~7976，利用7977作为掩码填充
-    # beh_label_list存放填充之后的交互信息
+    
     for i in range(n_behs):
         max_item, beh_label = get_lables(trnDicts[i])
         max_item_list.append(max_item)
@@ -374,13 +366,13 @@ if __name__ == '__main__':
 
     t0 = time()
 
-    # 初始化模型
+    
     model = MyModel(max_item_list, data_config=config, args=args).to(device)
     recloss = RecLoss(data_config=config, args=args).to(device)
 
-    # 优化器
+    
     optimizer = torch.optim.Adam(model.parameters(), lr=args.lr)
-    # 动态调整学习率
+    
     scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=args.lr_decay_step, gamma=args.lr_gamma)
     cur_best_pre_0 = 0.
     print('without pretraining.')
@@ -392,16 +384,14 @@ if __name__ == '__main__':
     stopping_step = 0
     should_stop = False
 
-    # user_train1为用户的ID序列，形状为（n_users,1）ndarry
-    # beh_item_list为一个List，List的元素个数为n_beh
-    # List中的每个元素为一个ndarry，就是将用户的交互转化为ndarry，形状为(n_users, max_item)
+    
     user_train1, beh_item_list = get_train_instances1(max_item_list, beh_label_list)
 
     nonshared_idx = -1
 
-    # 训练过程
+    
     for epoch in range(args.epoch):
-        # 在每个epoch中将数据的顺序打乱
+        
         model.train()
         shuffle_indices = np.random.permutation(np.arange(len(user_train1)))
         user_train1 = user_train1[shuffle_indices]
@@ -412,7 +402,7 @@ if __name__ == '__main__':
 
         iter_time = time()
 
-        # 每个batch中训练
+        
         for idx in range(n_batch):
             optimizer.zero_grad()
 
@@ -444,25 +434,23 @@ if __name__ == '__main__':
             # ------------------------------------------------------------------------------------------------
             
             ssl_temp = 0.1
-            # 行为内
+            # 
             batch_intra_ssl_loss = 0.
             alpha = 0.05
             emb_tgt = torch.multiply(ua_embeddings, rela_embeddings['train'])[u_batch_list.type(torch.long)]
             normalize_emb_tgt = F.normalize(emb_tgt, dim=1)
-            emb_aux = torch.multiply(ua_embeddings, rela_embeddings['train'])[u_batch_list.type(torch.long)]
-            normalize_emb_aux = F.normalize(emb_aux, dim=1)
             normalize_all_emb_aux = F.normalize(torch.multiply(ua_embeddings, rela_embeddings['train']), dim=1)
-            pos_score = torch.sum(torch.mul(normalize_emb_tgt, normalize_emb_aux),
-                            dim=1)  # [B, ]
             ttl_score = torch.matmul(normalize_emb_tgt, normalize_all_emb_aux.T)  # [B, N]
+            pos_score = ttl_score.clone()
+            pos_score[~u_batch_indices] = 0.
             ttl_score[u_batch_indices] = 0.
-            pos_score = torch.exp(pos_score / ssl_temp)
+            pos_score = torch.sum(torch.exp(pos_score / ssl_temp), dim=1)
             ttl_score = torch.sum(torch.exp(ttl_score / ssl_temp), dim=1)
-            batch_intra_ssl_loss += -torch.sum(torch.log(pos_score / ttl_score)) # 可以试试加权，现在是直接相加 
+            batch_intra_ssl_loss += -torch.sum(torch.log(pos_score / ttl_score)) 
             
             batch_intra_ssl_loss = batch_intra_ssl_loss * alpha            
             # ------------------------------------------------------------------------------------------------
-            # 行为间
+            # 
             
             batch_inter_ssl_loss = 0.
             user_emb1 = ua_embeddings[u_batch_list]
