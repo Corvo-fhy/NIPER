@@ -5,7 +5,7 @@ import pickle
 from tqdm import tqdm
 
 
-# 读取 txt 文件数据
+
 def load_txt_file(file_path):
     user_item_matrix = sp.lil_matrix((n_user, n_item))
 
@@ -17,7 +17,7 @@ def load_txt_file(file_path):
             
     return user_item_matrix
 
-# 构建用户对矩阵和物品对矩阵
+
 def build_matrices(user_item_matrix):
     num_users = user_item_matrix.shape[0]
     num_items = user_item_matrix.shape[1]
@@ -28,7 +28,7 @@ def build_matrices(user_item_matrix):
     user_item_matrix = user_item_matrix.tocsr()
     item_user_matrix = user_item_matrix.T
 
-    # 构建用户对矩阵
+
     for user_a in tqdm(range(num_users),desc="process user"):
         vector = user_item_matrix[user_a].todense().A1
         result  = user_item_matrix.dot(vector)
@@ -37,7 +37,7 @@ def build_matrices(user_item_matrix):
                 user_matrix[user_a, i] = 1
                 user_matrix[i, user_a] = 1
  
-    # 构建物品对矩阵
+
     for item_a in tqdm(range(num_items), desc="process item"):
         vector = item_user_matrix[item_a].todense().A1
         result  = item_user_matrix.dot(vector)
@@ -49,15 +49,15 @@ def build_matrices(user_item_matrix):
     return user_matrix.tocsr(), item_matrix.tocsr()
 
 def union_matrices(matrix_list):
-    result = matrix_list[0].copy()  # 创建初始矩阵的副本
+    result = matrix_list[0].copy()  
     for matrix in matrix_list[1:]:
-        result = result + matrix  # 按位或操作
+        result = result + matrix  
     
-    # 将所有大于 0 的元素设置为 1
+
     result[result > 0] = 1
     return result
 
-# 处理所有文件
+
 def process_all_files(n_user, n_item):
     user_matrices = []
     item_matrices = []
@@ -77,14 +77,12 @@ def process_all_files(n_user, n_item):
         user_matrices.append(user_matrix)
         item_matrices.append(item_matrix)
 
-    # 取用户对矩阵和物品对矩阵的交集
-    print("取用户对矩阵交集...")
+    
     final_user_matrix = union_matrices(user_matrices)
     
-    print("取物品对矩阵交集...")
     final_item_matrix = union_matrices(item_matrices)
 
-    # 保存最终结果
+
     sp.save_npz(f"Sim/{dataset}_user_matrix.npz", final_user_matrix)
     sp.save_npz(f"Sim/{dataset}_item_matrix.npz", final_item_matrix)
     print(f"{dataset}:Done")
@@ -103,8 +101,7 @@ def denoise_matrix():
 
 dataset_list = ["Beibei", "Taobao", "IJCAI", "Tmall"]
 for dataset in dataset_list:
-# 数据集参数设置
-# 文件列表，包含多个txt文件
+
     if dataset == "Beibei":
         behs = ['pv', 'cart', 'train']
         beh_rat = [1, 2, 3]
